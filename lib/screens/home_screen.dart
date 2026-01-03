@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
 
 import 'timetable_tab.dart';
 import 'todo_tab.dart';
 import 'study_buddy_tab.dart';
+import '../state/daily_progress.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,7 +19,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _currentIndex = 1;
 
-  // 🔹 Loaded from Supabase
   String? _firstName;
   String? _level;
   String? _major;
@@ -31,9 +32,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadUserContext();
   }
 
-  // ─────────────────────────────
-  // 🔌 LOAD USER DATA FROM SUPABASE
-  // ─────────────────────────────
   Future<void> _loadUserContext() async {
     try {
       final user = _client.auth.currentUser;
@@ -54,15 +52,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _semester = data['semester'];
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }
 
-  // ─────────────────────────────
-  // 🔄 CALLED AFTER PROFILE UPDATE
-  // ─────────────────────────────
   Future<void> _handleProfileUpdated() async {
     await _loadUserContext();
   }
@@ -74,17 +69,16 @@ class _HomeScreenState extends State<HomeScreen> {
         _level == null ||
         _major == null ||
         _semester == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     final tabs = [
       const TimetableTab(),
-
       HomeTab(
         firstName: _firstName!,
-        onViewTimetable: () {
-          setState(() => _currentIndex = 0);
-        },
+        onViewTimetable: () => setState(() => _currentIndex = 0),
         onProfileUpdated: _handleProfileUpdated,
       ),
       const TodoTab(),
@@ -127,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 /// ─────────────────────────────
-/// 🌿 HOME TAB (NO DUMMY DATA)
+/// 🌿 HOME TAB (REAL PROGRESS)
 /// ─────────────────────────────
 class HomeTab extends StatelessWidget {
   final String firstName;
@@ -143,7 +137,7 @@ class HomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double progress = 0.68; // later computed from tasks
+    final progress = context.watch<DailyProgress>().progress;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
@@ -171,19 +165,19 @@ class HomeTab extends StatelessWidget {
                     const SizedBox(height: 6),
                     const Text(
                       "Let’s make today count.",
-                      style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
                   ],
                 ),
               ),
               IconButton(
                 icon: const Icon(Icons.person_outline),
-                color: const Color(0xFF0F172A),
                 onPressed: () async {
-                  final updated = await Navigator.pushNamed(
-                    context,
-                    '/profile',
-                  );
+                  final updated =
+                      await Navigator.pushNamed(context, '/profile');
                   if (updated == true && context.mounted) {
                     onProfileUpdated();
                   }
@@ -194,7 +188,7 @@ class HomeTab extends StatelessWidget {
 
           const SizedBox(height: 36),
 
-          /// 🟢 FOCUS RING
+          /// 🟢 REAL PROGRESS RING
           Center(
             child: Container(
               width: 240,
@@ -215,10 +209,11 @@ class HomeTab extends StatelessWidget {
                   CircularProgressIndicator(
                     value: progress,
                     strokeWidth: 14,
-                    backgroundColor: const Color(
-                      0xFFCBD5E1,
-                    ).withValues(alpha: 0.4),
-                    valueColor: const AlwaysStoppedAnimation(Color(0xFF14B8A6)),
+                    backgroundColor:
+                        const Color(0xFFCBD5E1).withValues(alpha: 0.4),
+                    valueColor: const AlwaysStoppedAnimation(
+                      Color(0xFF14B8A6),
+                    ),
                   ),
                   Column(
                     mainAxisSize: MainAxisSize.min,

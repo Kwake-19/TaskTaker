@@ -5,23 +5,41 @@ import 'package:provider/provider.dart';
 
 import 'app.dart';
 import 'state/selected_day.dart';
+import 'state/daily_progress.dart'; 
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables
+  //  Load environment variables
   await dotenv.load(fileName: ".env");
 
   final url = dotenv.env['SUPABASE_URL'];
   final key = dotenv.env['SUPABASE_ANON_KEY'];
 
   if (url == null || key == null) {
-    throw Exception("Supabase URL or ANON KEY is missing from .env");
+    throw Exception(
+      "Supabase URL or ANON KEY is missing from .env",
+    );
   }
 
-  await Supabase.initialize(url: url, anonKey: key);
+  //  Initialize Supabase
+  await Supabase.initialize(
+    url: url,
+    anonKey: key,
+  );
 
+  //  Run app with global providers
   runApp(
-    ChangeNotifierProvider(create: (_) => SelectedDay(), child: const MyApp()),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => SelectedDay(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => DailyProgress(),
+        ),
+      ],
+      child: const MyApp(),
+    ),
   );
 }

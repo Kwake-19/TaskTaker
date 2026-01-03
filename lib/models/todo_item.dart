@@ -1,19 +1,18 @@
 class TodoItem {
+  final String id;
   final String title;
   final String subtitle;
-  bool completed;
   final bool isFromTimetable;
-
+  bool completed;
 
   TodoItem({
+    required this.id,
     required this.title,
     required this.subtitle,
-    this.completed = false,
     required this.isFromTimetable,
+    this.completed = false,
   });
 }
-
-
 
 
 

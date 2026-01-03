@@ -69,19 +69,26 @@ class TimetableService {
   }
 
   // =====================================================
-  // CONVERT TIMETABLE → TODO TASKS (ANY DAY)
+  // CONVERT TIMETABLE → TODOTASKS (FOR ANY DAY)
   // =====================================================
   static Future<List<TodoItem>> getTodoTasksForDay(String selectedDay) async {
     final timetable = await getTimetable();
 
     final dayClasses = timetable.where((entry) {
-      return entry.day == selectedDay;
-    }).toList();
+      return entry.day.toLowerCase() ==
+          selectedDay.toLowerCase();
+    });
 
     return dayClasses.map((entry) {
       return TodoItem(
+        // ✅ GENERATED STABLE ID
+        id: 'tt_${entry.course}_${entry.day}_${entry.startTime}',
+
         title: 'Attend ${entry.course}',
-        subtitle: '${entry.startTime} – ${entry.endTime} · ${entry.location}',
+        subtitle:
+            '${entry.startTime} – ${entry.endTime} · ${entry.location}',
+
+        completed: false,
         isFromTimetable: true,
       );
     }).toList();
@@ -122,3 +129,4 @@ class TimetableService {
     return day;
   }
 }
+

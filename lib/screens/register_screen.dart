@@ -1,20 +1,14 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 
-
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
-
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-
 class _RegisterScreenState extends State<RegisterScreen> {
-  // ─────────────────────────────
-  // Controllers
-  // ─────────────────────────────
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -22,17 +16,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmPasswordController = TextEditingController();
   final _matriculeController = TextEditingController();
 
-
   final AuthService _authService = AuthService();
 
-
-  // ─────────────────────────────
-  // Dropdown data
-  // ─────────────────────────────
   final List<String> _levels = ['100', '200', '300', '400'];
 
-
-  /// 🔑 MAJOR CODE → DISPLAY NAME
   final Map<String, String> _majors = {
     'CS': 'Computer Science',
     'SEN': 'Software Engineering',
@@ -41,18 +28,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     'ICT': 'Information and Communication Technology',
   };
 
-
   final List<String> _semesters = ['Fall', 'Spring'];
-
 
   String _institution = 'ICT University';
   String _level = '100';
-  String _majorCode = 'CS'; // ✅ STORE CODE, NOT NAME
+  String _majorCode = 'CS';
   String _semester = 'Fall';
 
-
   bool _isLoading = false;
-
 
   @override
   void dispose() {
@@ -65,77 +48,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-
-  // ─────────────────────────────
-  // REGISTER LOGIC
-  // ─────────────────────────────
   Future<void> _register() async {
     if (_isLoading) return;
 
+    final fields = [
+      _firstNameController.text.trim(),
+      _lastNameController.text.trim(),
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
+      _confirmPasswordController.text.trim(),
+      _matriculeController.text.trim(),
+    ];
 
-    final firstName = _firstNameController.text.trim();
-    final lastName = _lastNameController.text.trim();
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-    final confirmPassword = _confirmPasswordController.text.trim();
-    final matricule = _matriculeController.text.trim();
-
-
-    if ([
-      firstName,
-      lastName,
-      email,
-      password,
-      confirmPassword,
-      matricule
-    ].any((e) => e.isEmpty)) {
+    if (fields.any((e) => e.isEmpty)) {
       _showError('Please fill in all fields.');
       return;
     }
 
-
-    if (password.length < 6) {
+    if (_passwordController.text.length < 6) {
       _showError('Password must be at least 6 characters.');
       return;
     }
 
-
-    if (password != confirmPassword) {
+    if (_passwordController.text !=
+        _confirmPasswordController.text) {
       _showError('Passwords do not match.');
       return;
     }
 
-
     setState(() => _isLoading = true);
-
 
     try {
       await _authService.registerStudent(
-        email: email,
-        password: password,
-        firstName: firstName,
-        lastName: lastName,
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
         institution: _institution,
-        matricule: matricule,
+        matricule: _matriculeController.text.trim(),
         level: _level,
-        major: _majorCode, // ✅ CODE GOES TO DATABASE
+        major: _majorCode,
         semester: _semester,
       );
-
 
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
-      _showError(
-        e.toString().replaceFirst('Exception:', '').trim(),
-      );
+      _showError(e.toString().replaceFirst('Exception:', '').trim());
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
-
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -147,150 +110,138 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-
-  // ─────────────────────────────
-  // UI
-  // ─────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: ListView(
-            children: [
-              const SizedBox(height: 24),
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            28,
+            24,
+            28,
+            keyboardInset + 24,
+          ),
+          children: [
+            IconButton(
+              alignment: Alignment.centerLeft,
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => Navigator.pop(context),
+            ),
 
+            const SizedBox(height: 16),
 
-              IconButton(
-                alignment: Alignment.centerLeft,
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => Navigator.pop(context),
+            const Text(
+              'Create an account',
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A),
               ),
+            ),
 
+            const SizedBox(height: 28),
 
-              const SizedBox(height: 16),
+            _input(_firstNameController, 'First Name'),
+            _input(_lastNameController, 'Last Name'),
 
+            _dropdown(
+              'Institution',
+              _institution,
+              const ['ICT University'],
+              (v) => setState(() => _institution = v!),
+            ),
 
-              const Text(
-                'Create an account',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
+            _dropdown(
+              'Level',
+              _level,
+              _levels,
+              (v) => setState(() => _level = v!),
+            ),
 
-
-              const SizedBox(height: 28),
-
-
-              _input(_firstNameController, 'First Name'),
-              _input(_lastNameController, 'Last Name'),
-
-
-              _dropdown(
-                'Institution',
-                _institution,
-                const ['ICT University'],
-                (v) => setState(() => _institution = v!),
-              ),
-
-
-              _dropdown(
-                'Level',
-                _level,
-                _levels,
-                (v) => setState(() => _level = v!),
-              ),
-
-
-              /// 🎓 MAJOR (CODE ↔ NAME)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Major',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: _majorCode,
-                      items: _majors.entries
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e.key,          // SEN, CSC
-                              child: Text(e.value),  // Display name
+            /// 🎓 MAJOR (FIXED OVERFLOW)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Major',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    isExpanded: true, // 🔑 FIX
+                    initialValue: _majorCode,
+                    items: _majors.entries
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: e.key,
+                            child: Text(
+                              e.value,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          )
-                          .toList(),
-                      onChanged: (v) =>
-                          setState(() => _majorCode = v!),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: Colors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) =>
+                        setState(() => _majorCode = v!),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
                       ),
                     ),
-                  ],
-                ),
-              ),
-
-
-              _dropdown(
-                'Semester',
-                _semester,
-                _semesters,
-                (v) => setState(() => _semester = v!),
-              ),
-
-
-              _input(_matriculeController, 'Matricule'),
-              _input(_emailController, 'Email',
-                  type: TextInputType.emailAddress),
-              _input(_passwordController, 'Password', obscure: true),
-              _input(_confirmPasswordController, 'Confirm Password',
-                  obscure: true),
-
-
-              const SizedBox(height: 28),
-
-
-              SizedBox(
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _register,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F172A),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
                   ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(
-                          color: Colors.white,
-                        )
-                      : const Text(
-                          'Create Account',
-                          style: TextStyle(fontSize: 18),
-                        ),
-                ),
+                ],
               ),
-            ],
-          ),
+            ),
+
+            _dropdown(
+              'Semester',
+              _semester,
+              _semesters,
+              (v) => setState(() => _semester = v!),
+            ),
+
+            _input(_matriculeController, 'Matricule'),
+            _input(_emailController, 'Email',
+                type: TextInputType.emailAddress),
+            _input(_passwordController, 'Password', obscure: true),
+            _input(_confirmPasswordController, 'Confirm Password',
+                obscure: true),
+
+            const SizedBox(height: 28),
+
+            SizedBox(
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _register,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F172A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
+                        'Create Account',
+                        style: TextStyle(fontSize: 18),
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-
-  // ─────────────────────────────
-  // HELPERS
-  // ─────────────────────────────
   Widget _dropdown(
     String label,
     String value,
@@ -306,6 +257,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               style: const TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
+            isExpanded: true, // 🔑 ALSO IMPORTANT
             initialValue: value,
             items: items
                 .map((e) =>
@@ -325,7 +277,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
-
 
   Widget _input(
     TextEditingController controller,
@@ -359,10 +310,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
-
-
-
-
 
 
 

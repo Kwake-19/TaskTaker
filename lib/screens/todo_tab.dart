@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../models/todo_item.dart';
 import '../services/timetable_service.dart';
+import '../services/task_service.dart';
 import '../state/selected_day.dart';
+import '../state/daily_progress.dart';
 
 class TodoTab extends StatefulWidget {
   const TodoTab({super.key});
@@ -12,41 +15,68 @@ class TodoTab extends StatefulWidget {
 }
 
 class _TodoTabState extends State<TodoTab> {
-  // 🔒 Timetable-derived tasks
   List<TodoItem> _timetableTasks = [];
-  bool _loadingTimetableTasks = true;
+  List<TodoItem> _personalTasks = [];
 
-  // 🧹 Personal tasks (local only for now)
-  final List<TodoItem> _personalTasks = [];
+  bool _loadingTimetable = true;
+  bool _loadingPersonal = true;
 
-  String? _lastLoadedDay;
+  String? _lastDay;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // 👂 Listen to selected day changes
-    final selectedDay = context.watch<SelectedDay>().day;
-
-    // 🔁 Reload only when day actually changes
-    if (_lastLoadedDay != selectedDay) {
-      _lastLoadedDay = selectedDay;
-      _loadTimetableTasksForDay(selectedDay);
+    final day = context.watch<SelectedDay>().day;
+    if (_lastDay != day) {
+      _lastDay = day;
+      _loadTimetable(day);
+      _loadPersonalTasks(day);
     }
   }
 
-  Future<void> _loadTimetableTasksForDay(String day) async {
-    setState(() => _loadingTimetableTasks = true);
+  // ─────────────────────────────────────────────
+  // LOAD DATA
+  // ─────────────────────────────────────────────
+
+  Future<void> _loadTimetable(String day) async {
+    setState(() => _loadingTimetable = true);
 
     final tasks = await TimetableService.getTodoTasksForDay(day);
-
     if (!mounted) return;
 
     setState(() {
       _timetableTasks = tasks;
-      _loadingTimetableTasks = false;
+      _loadingTimetable = false;
     });
+
+    _recalculateProgress();
   }
+
+  Future<void> _loadPersonalTasks(String day) async {
+    setState(() => _loadingPersonal = true);
+
+    final tasks = await TaskService.getTasksForDay(day);
+    if (!mounted) return;
+
+    setState(() {
+      _personalTasks = tasks;
+      _loadingPersonal = false;
+    });
+
+    _recalculateProgress();
+  }
+
+  void _recalculateProgress() {
+    context.read<DailyProgress>().recalculate(
+          timetableTasks: _timetableTasks,
+          personalTasks: _personalTasks,
+        );
+  }
+
+  // ─────────────────────────────────────────────
+  // UI
+  // ─────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +84,7 @@ class _TodoTabState extends State<TodoTab> {
       backgroundColor: const Color(0xFFF8FAFC),
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFF0F172A),
-        onPressed: _showAddTaskSheet,
+        onPressed: _showAddTaskPopup,
         child: const Icon(Icons.add),
       ),
       body: SafeArea(
@@ -67,47 +97,32 @@ class _TodoTabState extends State<TodoTab> {
                 style: TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
                 ),
               ),
-
               const SizedBox(height: 24),
 
-              // =====================
-              // FROM TIMETABLE
-              // =====================
               _sectionTitle("From Timetable"),
 
-              if (_loadingTimetableTasks)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: CircularProgressIndicator()),
-                )
+              if (_loadingTimetable)
+                const Center(child: CircularProgressIndicator())
               else if (_timetableTasks.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    "No classes this day 🎉",
-                    style: TextStyle(color: Color(0xFF64748B)),
-                  ),
-                )
+                const Text("No classes this day 🎉")
               else
-                ..._timetableTasks.map(_lockedTaskCard),
+                ..._timetableTasks.map(_taskCard),
 
               const SizedBox(height: 32),
 
-              // =====================
-              // PERSONAL TASKS
-              // =====================
               _sectionTitle("My Tasks"),
 
-              _personalTasks.isEmpty
-                  ? _emptyPersonalTasks()
-                  : Column(
-                      children: _personalTasks
-                          .map(_dismissibleTaskCard)
-                          .toList(),
-                    ),
+              if (_loadingPersonal)
+                const Center(child: CircularProgressIndicator())
+              else if (_personalTasks.isEmpty)
+                _emptyPersonal()
+              else
+                Column(
+                  children:
+                      _personalTasks.map(_dismissibleTask).toList(),
+                ),
             ],
           ),
         ),
@@ -115,54 +130,24 @@ class _TodoTabState extends State<TodoTab> {
     );
   }
 
-  // ======================================================
-  // UI HELPERS
-  // ======================================================
+  // ─────────────────────────────────────────────
+  // COMPONENTS
+  // ─────────────────────────────────────────────
 
-  Widget _sectionTitle(String title) {
+  Widget _sectionTitle(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
-        title,
+        text,
         style: const TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF0F172A),
         ),
       ),
     );
   }
 
-  /// 🔒 Timetable task (locked)
-  Widget _lockedTaskCard(TodoItem item) {
-    return _taskCard(item);
-  }
-
-  /// 🧹 Personal task (dismissible)
-  Widget _dismissibleTaskCard(TodoItem item) {
-    return Dismissible(
-      key: UniqueKey(),
-      direction: DismissDirection.horizontal,
-      background: _swipeBackground(
-        icon: Icons.check,
-        color: Colors.green,
-        alignment: Alignment.centerLeft,
-      ),
-      secondaryBackground: _swipeBackground(
-        icon: Icons.delete,
-        color: Colors.red,
-        alignment: Alignment.centerRight,
-      ),
-      onDismissed: (_) {
-        setState(() {
-          _personalTasks.remove(item);
-        });
-      },
-      child: _taskCard(item),
-    );
-  }
-
-  /// 🧱 Shared task card UI
+  /// ✅ FIXED: Timetable tasks are now checkable
   Widget _taskCard(TodoItem item) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -170,11 +155,11 @@ class _TodoTabState extends State<TodoTab> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black12,
             blurRadius: 10,
-            offset: const Offset(0, 6),
+            offset: Offset(0, 6),
           ),
         ],
       ),
@@ -182,12 +167,19 @@ class _TodoTabState extends State<TodoTab> {
         children: [
           Checkbox(
             value: item.completed,
-            activeColor: const Color(0xFF14B8A6),
-            onChanged: item.isFromTimetable
-                ? null
-                : (value) {
-                    setState(() => item.completed = value ?? false);
-                  },
+            onChanged: (v) async {
+              if (v == null) return;
+
+              setState(() => item.completed = v);
+
+              // 🔒 Persist ONLY personal tasks
+              if (!item.isFromTimetable) {
+                await TaskService.toggleTask(item.id, v);
+              }
+
+              if (!mounted) return;
+              _recalculateProgress();
+            },
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -197,26 +189,16 @@ class _TodoTabState extends State<TodoTab> {
                 Text(
                   item.title,
                   style: TextStyle(
-                    fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    decoration: item.completed
-                        ? TextDecoration.lineThrough
-                        : null,
-                    color: item.completed
-                        ? const Color(0xFF94A3B8)
-                        : const Color(0xFF0F172A),
+                    decoration:
+                        item.completed ? TextDecoration.lineThrough : null,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   item.subtitle,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF64748B),
-                  ),
+                  style: const TextStyle(color: Colors.grey),
                 ),
-                const SizedBox(height: 8),
-                _originChip(item.isFromTimetable),
               ],
             ),
           ),
@@ -225,48 +207,134 @@ class _TodoTabState extends State<TodoTab> {
     );
   }
 
-  Widget _originChip(bool fromTimetable) {
-    return Chip(
-      label: Text(fromTimetable ? 'From Timetable' : 'Personal'),
-      backgroundColor: const Color(0xFF14B8A6).withValues(alpha: 0.15),
-      labelStyle: const TextStyle(
-        color: Color(0xFF14B8A6),
-        fontWeight: FontWeight.w600,
+  Widget _dismissibleTask(TodoItem item) {
+    return Dismissible(
+      key: ValueKey(item.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        color: Colors.red.withValues(alpha: 0.15),
+        child: const Icon(Icons.delete, color: Colors.red),
       ),
+      onDismissed: (_) async {
+        final day = _lastDay;
+        await TaskService.deleteTask(item.id);
+
+        if (!mounted || day == null) return;
+        await _loadPersonalTasks(day);
+      },
+      child: _taskCard(item),
     );
   }
 
-  Widget _swipeBackground({
-    required IconData icon,
-    required Color color,
-    required Alignment alignment,
-  }) {
-    return Container(
-      alignment: alignment,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      color: color.withValues(alpha: 0.15),
-      child: Icon(icon, color: color),
-    );
-  }
-
-  Widget _emptyPersonalTasks() {
+  Widget _emptyPersonal() {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 20),
       child: Text(
         "No personal tasks yet.\nTap + to add one.",
         textAlign: TextAlign.center,
-        style: TextStyle(color: Color(0xFF64748B)),
       ),
     );
   }
 
-  void _showAddTaskSheet() {
-    showModalBottomSheet(
+  // ─────────────────────────────────────────────
+  // ADD TASK POPUP
+  // ─────────────────────────────────────────────
+
+  void _showAddTaskPopup() {
+    final controller = TextEditingController();
+    TimeOfDay? time;
+
+    final day = context.read<SelectedDay>().day;
+
+    showDialog(
       context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => const SizedBox(height: 200),
+      builder: (dialogContext) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: StatefulBuilder(
+            builder: (_, setModal) {
+              return Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      "Add Task",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        hintText: "Task title",
+                        filled: true,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            time == null
+                                ? "No time selected"
+                                : time!.format(context),
+                          ),
+                        ),
+                        TextButton.icon(
+                          icon: const Icon(Icons.access_time),
+                          label: const Text("Pick time"),
+                          onPressed: () async {
+                            final t = await showTimePicker(
+                              context: context,
+                              initialTime: TimeOfDay.now(),
+                            );
+                            if (t != null) setModal(() => time = t);
+                          },
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          final title = controller.text.trim();
+                          if (title.isEmpty) return;
+
+                          await TaskService.addTask(
+                            title: title,
+                            day: day,
+                            time: time?.format(context),
+                          );
+
+                          if (!mounted) return;
+                          await _loadPersonalTasks(day);
+                          Navigator.of(dialogContext).pop();
+                        },
+                        child: const Text("Add Task"),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

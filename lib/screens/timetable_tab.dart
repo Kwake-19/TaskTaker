@@ -27,9 +27,9 @@ class _TimetableTabState extends State<TimetableTab> {
   @override
   void initState() {
     super.initState();
-    _timetableFuture = TimetableService.getTimetable();
+    _loadTimetable();
 
-    // 🔑 Sync initial selected day with global state (today)
+    /// 🔑 Sync with global selected day
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final selectedDay = context.read<SelectedDay>().day;
       final index = _days.indexOf(selectedDay);
@@ -39,16 +39,26 @@ class _TimetableTabState extends State<TimetableTab> {
     });
   }
 
-  /// 🔑 NORMALIZE DAY FROM DATABASE
+  void _loadTimetable() {
+    _timetableFuture = TimetableService.getTimetable();
+  }
+
+  /// 🔄 Pull-to-refresh handler
+  Future<void> _refresh() async {
+    setState(() {
+      _loadTimetable();
+    });
+    await _timetableFuture;
+  }
+
+  /// 🔑 Normalize DB day strings
   String normalizeDay(String day) {
     final d = day.trim().toLowerCase();
-
     if (d.startsWith('mon')) return 'Monday';
     if (d.startsWith('tue')) return 'Tuesday';
     if (d.startsWith('wed')) return 'Wednesday';
     if (d.startsWith('thu')) return 'Thursday';
     if (d.startsWith('fri')) return 'Friday';
-
     return day;
   }
 
@@ -83,8 +93,9 @@ class _TimetableTabState extends State<TimetableTab> {
 
                   return GestureDetector(
                     onTap: () {
-                      // 🔥 THIS IS THE CRITICAL LINE
-                      context.read<SelectedDay>().setDay(_days[index]);
+                      context
+                          .read<SelectedDay>()
+                          .setDay(_days[index]);
 
                       setState(() => _selectedDayIndex = index);
                     },
@@ -110,7 +121,8 @@ class _TimetableTabState extends State<TimetableTab> {
                         _days[index].substring(0, 3),
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: isSelected ? Colors.white : Colors.black87,
+                          color:
+                              isSelected ? Colors.white : Colors.black87,
                         ),
                       ),
                     ),
@@ -121,60 +133,76 @@ class _TimetableTabState extends State<TimetableTab> {
 
             const SizedBox(height: 24),
 
-            /// 📚 TIMETABLE CONTENT
+            /// 📚 TIMETABLE CONTENT (WITH PULL-TO-REFRESH)
             Expanded(
-              child: FutureBuilder<List<TimetableEntry>>(
-                future: _timetableFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+              child: RefreshIndicator(
+                onRefresh: _refresh,
+                child: FutureBuilder<List<TimetableEntry>>(
+                  future: _timetableFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState ==
+                        ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(),
+                      );
+                    }
 
-                  if (snapshot.hasError) {
-                    return Center(
-                      child: Text(
-                        snapshot.error.toString(),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red),
-                      ),
+                    if (snapshot.hasError) {
+                      return ListView(
+                        children: [
+                          const SizedBox(height: 120),
+                          Center(
+                            child: Text(
+                              snapshot.error.toString(),
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    final timetable = snapshot.data ?? [];
+                    final selectedDay = _days[_selectedDayIndex];
+
+                    final dayClasses = timetable.where((entry) {
+                      return normalizeDay(entry.day) == selectedDay;
+                    }).toList();
+
+                    if (dayClasses.isEmpty) {
+                      return ListView(
+                        children: const [
+                          SizedBox(height: 120),
+                          Icon(
+                            Icons.event_available,
+                            size: 48,
+                            color: Color(0xFF94A3B8),
+                          ),
+                          SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              "No classes today",
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: dayClasses.length,
+                      itemBuilder: (context, index) {
+                        return _ClassCard(entry: dayClasses[index]);
+                      },
                     );
-                  }
-
-                  final timetable = snapshot.data ?? [];
-                  final selectedDay = _days[_selectedDayIndex];
-
-                  final dayClasses = timetable.where((entry) {
-                    return normalizeDay(entry.day) == selectedDay;
-                  }).toList();
-
-                  if (dayClasses.isEmpty) {
-                    return _emptyState();
-                  }
-
-                  return ListView.builder(
-                    itemCount: dayClasses.length,
-                    itemBuilder: (context, index) {
-                      return _ClassCard(entry: dayClasses[index]);
-                    },
-                  );
-                },
+                  },
+                ),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _emptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.event_available, size: 48, color: Color(0xFF94A3B8)),
-          SizedBox(height: 12),
-          Text("No classes today", style: TextStyle(color: Color(0xFF64748B))),
-        ],
       ),
     );
   }
@@ -222,29 +250,12 @@ class _ClassCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  "${entry.startTime} - ${entry.endTime}",
-                  style: const TextStyle(color: Color(0xFF475569)),
-                ),
+                Text("${entry.startTime} - ${entry.endTime}"),
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: 16,
-                      color: Color(0xFF64748B),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      entry.location,
-                      style: const TextStyle(color: Color(0xFF64748B)),
-                    ),
-                  ],
-                ),
+                Text(entry.location),
               ],
             ),
           ),

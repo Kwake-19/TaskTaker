@@ -13,7 +13,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
 
   final AuthService _authService = AuthService();
-
   bool _isLoading = false;
 
   @override
@@ -23,7 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // 🔐 REAL SUPABASE LOGIN
   Future<void> _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -36,22 +34,13 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _authService.login(
-        email: email,
-        password: password,
-      );
-
+      await _authService.login(email: email, password: password);
       if (!mounted) return;
-
       Navigator.pushReplacementNamed(context, "/home");
     } catch (e) {
-      _showError(
-        e.toString().replaceAll("Exception:", "").trim(),
-      );
+      _showError(e.toString().replaceAll("Exception:", "").trim());
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -67,11 +56,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            28,
+            0,
+            28,
+            keyboardInset + 20, // 🔑 KEY FIX
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -109,7 +106,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 40),
 
-              /// 📧 EMAIL
               _InputField(
                 controller: _emailController,
                 label: "Email address",
@@ -119,7 +115,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 20),
 
-              /// 🔑 PASSWORD
               _InputField(
                 controller: _passwordController,
                 label: "Password",
@@ -129,7 +124,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 32),
 
-              /// ✅ LOGIN BUTTON
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -138,8 +132,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0F172A),
                     elevation: 6,
-                    shadowColor: const Color(0xFF0F172A)
-                        .withValues(alpha: 0.35),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -166,7 +158,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 20),
 
-              /// ➕ REGISTER LINK
               Center(
                 child: TextButton(
                   onPressed: () {
@@ -190,7 +181,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-/// 🎯 REUSABLE INPUT FIELD (DESIGN SYSTEM)
 class _InputField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
@@ -247,3 +237,4 @@ class _InputField extends StatelessWidget {
     );
   }
 }
+
