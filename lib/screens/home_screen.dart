@@ -6,6 +6,7 @@ import 'timetable_tab.dart';
 import 'todo_tab.dart';
 import 'study_buddy_tab.dart';
 import '../state/daily_progress.dart';
+import '../state/selected_day.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,7 +15,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with WidgetsBindingObserver {
   final SupabaseClient _client = Supabase.instance.client;
 
   int _currentIndex = 1;
@@ -29,9 +31,28 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUserContext();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// 🔁 Detect app resume (midnight-safe)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      context.read<SelectedDay>().syncWithToday();
+      context.read<DailyProgress>().resetIfNewDay();
+    }
+  }
+
+  // ─────────────────────────────
+  // 🔌 LOAD USER DATA
+  // ─────────────────────────────
   Future<void> _loadUserContext() async {
     try {
       final user = _client.auth.currentUser;
@@ -88,7 +109,10 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: IndexedStack(index: _currentIndex, children: tabs),
+        child: IndexedStack(
+          index: _currentIndex,
+          children: tabs,
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -120,9 +144,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// ─────────────────────────────
+////////////////////////////////////////////////
 /// 🌿 HOME TAB (REAL PROGRESS)
-/// ─────────────────────────────
+////////////////////////////////////////////////
 class HomeTab extends StatelessWidget {
   final String firstName;
   final VoidCallback onViewTimetable;
@@ -146,7 +170,6 @@ class HomeTab extends StatelessWidget {
         children: [
           /// 🔝 HEADER
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
@@ -190,19 +213,9 @@ class HomeTab extends StatelessWidget {
 
           /// 🟢 REAL PROGRESS RING
           Center(
-            child: Container(
+            child: SizedBox(
               width: 240,
               height: 240,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF14B8A6).withValues(alpha: 0.15),
-                    blurRadius: 40,
-                    spreadRadius: 8,
-                  ),
-                ],
-              ),
               child: Stack(
                 alignment: Alignment.center,
                 children: [
@@ -223,16 +236,12 @@ class HomeTab extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 42,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
                         ),
                       ),
                       const SizedBox(height: 6),
                       const Text(
                         "of today completed",
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF64748B),
-                        ),
+                        style: TextStyle(color: Color(0xFF64748B)),
                       ),
                     ],
                   ),
@@ -257,7 +266,7 @@ class HomeTab extends StatelessWidget {
               ),
               child: const Text(
                 "View Timetable",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 18),
               ),
             ),
           ),
