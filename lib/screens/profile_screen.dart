@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -8,35 +9,129 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Mock data (UI-only)
-  final String _fullName = "Arabella Kwake";
-  final String _institution = "ICT University";
-  final String _matricule = "ICTU20241518";
+  final SupabaseClient _client = Supabase.instance.client;
 
-  String _selectedLevel = "200";
-  String _selectedMajor = "Software Engineering";
-  String _selectedSemester = "Fall";
+  // ─── Loaded from backend ───
+  String _fullName = '';
+  String _institution = '';
+  String _matricule = '';
+  String _userId = '';
 
-  final List<String> _levels = ["100", "200", "300", "400"];
-  final List<String> _majors = [
-    "Computer Science",
-    "Software Engineering",
-    "Information Systems",
-    "Cyber Security",
-    "Data Science",
-  ];
-  final List<String> _semesters = ["Fall", "Spring"];
+  // ─── Editable ───
+  String? _selectedLevel;
+  String? _selectedMajor;
+  String? _selectedSemester;
+
+  bool _isLoading = true;
+
+  final List<String> _levels = ['100', '200', '300', '400'];
+  final List<String> _majors = ['CS', 'SEN', 'ISN', 'CYS', 'ICT'];
+  final List<String> _semesters = ['Fall', 'Spring'];
 
   @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  // ─────────────────────────────
+  // LOAD PROFILE (SAFE)
+  // ─────────────────────────────
+  Future<void> _loadProfile() async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      _userId = user.id;
+
+      final data = await _client
+          .from('students')
+          .select()
+          .eq('id', _userId)
+          .maybeSingle();
+
+      if (data == null) {
+        throw Exception('Profile not found');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _fullName = '${data['first_name'] ?? ''} ${data['last_name'] ?? ''}';
+        _institution = data['institution'] ?? '';
+        _matricule = data['matricule'] ?? '';
+
+        _selectedLevel = _levels.contains(data['level'])
+            ? data['level']
+            : _levels.first;
+
+        _selectedMajor = _majors.contains(data['major'])
+            ? data['major']
+            : _majors.first;
+
+        _selectedSemester = _semesters.contains(data['semester'])
+            ? data['semester']
+            : _semesters.first;
+
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showMessage(e.toString(), isError: true);
+    }
+  }
+
+  // ─────────────────────────────
+  // SAVE PROFILE
+  // ─────────────────────────────
+  Future<void> _saveProfile() async {
+    try {
+      await _client
+          .from('students')
+          .update({
+            'level': _selectedLevel,
+            'major': _selectedMajor,
+            'semester': _selectedSemester,
+          })
+          .eq('id', _userId);
+
+      if (!mounted) return;
+      _showMessage('Profile updated successfully');
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage('Failed to save profile', isError: true);
+    }
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red.shade700 : Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // ─────────────────────────────
+  // UI
+  // ─────────────────────────────
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF8FAFC),
         elevation: 0,
+        backgroundColor: const Color(0xFFF8FAFC),
         foregroundColor: const Color(0xFF0F172A),
         title: const Text(
-          "Profile",
+          'Profile',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
@@ -45,63 +140,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding: const EdgeInsets.all(24),
           child: ListView(
             children: [
-              /// 👤 HEADER CARD
               _profileHeader(),
+              const SizedBox(height: 32),
+
+              _sectionTitle('Student Information'),
+              _infoTile('Full name', _fullName),
+              _infoTile('Institution', _institution),
+              _infoTile('Matricule', _matricule),
 
               const SizedBox(height: 32),
 
-              /// 🏫 STUDENT INFO
-              _sectionTitle("Student Information"),
-              _infoTile("Full name", _fullName),
-              _infoTile("Institution", _institution),
-              _infoTile("Matricule", _matricule),
-
-              const SizedBox(height: 32),
-
-              /// 🎓 ACADEMIC CONTEXT
-              _sectionTitle("Academic Context"),
-              _dropdownField(
-                label: "Level",
+              _sectionTitle('Academic Context'),
+              _dropdown(
+                label: 'Level',
                 value: _selectedLevel,
                 items: _levels,
-                onChanged: (value) {
-                  setState(() => _selectedLevel = value!);
-                },
+                onChanged: (v) => setState(() => _selectedLevel = v),
               ),
               const SizedBox(height: 16),
-              _dropdownField(
-                label: "Major",
+              _dropdown(
+                label: 'Major',
                 value: _selectedMajor,
                 items: _majors,
-                onChanged: (value) {
-                  setState(() => _selectedMajor = value!);
-                },
+                onChanged: (v) => setState(() => _selectedMajor = v),
               ),
               const SizedBox(height: 16),
-              _dropdownField(
-                label: "Semester",
+              _dropdown(
+                label: 'Semester',
                 value: _selectedSemester,
                 items: _semesters,
-                onChanged: (value) {
-                  setState(() => _selectedSemester = value!);
-                },
+                onChanged: (v) => setState(() => _selectedSemester = v),
               ),
 
               const SizedBox(height: 40),
 
-              /// 💾 SAVE BUTTON
               SizedBox(
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {
-                    // TO_DO: Later: save + reload timetable
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Profile updated"),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
+                  onPressed: _saveProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0F172A),
                     shape: RoundedRectangleBorder(
@@ -109,11 +185,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   child: const Text(
-                    "Save Changes",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    'Save Changes',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -125,9 +198,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // ─────────────────────────────
-  // UI COMPONENTS
+  // COMPONENTS
   // ─────────────────────────────
-
   Widget _profileHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -146,13 +218,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           CircleAvatar(
             radius: 30,
-            backgroundColor:
-                const Color(0xFF14B8A6).withValues(alpha: 0.15),
-            child: const Icon(
-              Icons.person,
-              size: 32,
-              color: Color(0xFF14B8A6),
-            ),
+            backgroundColor: const Color(0xFF14B8A6).withValues(alpha: 0.15),
+            child: const Icon(Icons.person, size: 32, color: Color(0xFF14B8A6)),
           ),
           const SizedBox(width: 16),
           Column(
@@ -169,10 +236,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 4),
               Text(
                 _institution,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF64748B),
-                ),
+                style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
               ),
             ],
           ),
@@ -207,12 +271,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: Color(0xFF64748B),
-              ),
-            ),
+            Text(label, style: const TextStyle(color: Color(0xFF64748B))),
             Text(
               value,
               style: const TextStyle(
@@ -226,12 +285,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _dropdownField({
+  Widget _dropdown({
     required String label,
-    required String value,
+    required String? value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
   }) {
+    final safeValue = items.contains(value) ? value : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -244,14 +305,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          initialValue: value,
+          initialValue: safeValue,
           items: items
-              .map(
-                (item) => DropdownMenuItem(
-                  value: item,
-                  child: Text(item),
-                ),
-              )
+              .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
               .toList(),
           onChanged: onChanged,
           decoration: InputDecoration(

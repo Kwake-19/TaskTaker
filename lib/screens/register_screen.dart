@@ -1,43 +1,58 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 
+
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
+
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
+
 class _RegisterScreenState extends State<RegisterScreen> {
-  // 🔹 Controllers
-  final TextEditingController _firstNameController = TextEditingController();
-  final TextEditingController _lastNameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
-  final TextEditingController _matriculeController = TextEditingController();
+  // ─────────────────────────────
+  // Controllers
+  // ─────────────────────────────
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _matriculeController = TextEditingController();
+
 
   final AuthService _authService = AuthService();
 
-  // 🔹 Dropdown options
+
+  // ─────────────────────────────
+  // Dropdown data
+  // ─────────────────────────────
   final List<String> _levels = ['100', '200', '300', '400'];
-  final List<String> _majors = [
-    'Computer Science',
-    'Software Engineering',
-    'Information Systems',
-    'Cyber Security',
-    'Data Science',
-  ];
+
+
+  /// 🔑 MAJOR CODE → DISPLAY NAME
+  final Map<String, String> _majors = {
+    'CS': 'Computer Science',
+    'SEN': 'Software Engineering',
+    'ISN': 'Information Systems & Networking',
+    'CYS': 'Cyber Security',
+    'ICT': 'Information and Communication Technology',
+  };
+
+
   final List<String> _semesters = ['Fall', 'Spring'];
 
-  // 🔹 Selected values
-  String _selectedInstitution = "ICT University";
-  String _selectedLevel = '100';
-  String _selectedMajor = 'Computer Science';
-  String _selectedSemester = 'Fall';
+
+  String _institution = 'ICT University';
+  String _level = '100';
+  String _majorCode = 'CS'; // ✅ STORE CODE, NOT NAME
+  String _semester = 'Fall';
+
 
   bool _isLoading = false;
+
 
   @override
   void dispose() {
@@ -50,7 +65,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+
+  // ─────────────────────────────
+  // REGISTER LOGIC
+  // ─────────────────────────────
   Future<void> _register() async {
+    if (_isLoading) return;
+
+
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
     final email = _emailController.text.trim();
@@ -58,49 +80,62 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final confirmPassword = _confirmPasswordController.text.trim();
     final matricule = _matriculeController.text.trim();
 
-    if (firstName.isEmpty ||
-        lastName.isEmpty ||
-        email.isEmpty ||
-        password.isEmpty ||
-        confirmPassword.isEmpty ||
-        matricule.isEmpty) {
-      _showError("Please fill in all fields.");
+
+    if ([
+      firstName,
+      lastName,
+      email,
+      password,
+      confirmPassword,
+      matricule
+    ].any((e) => e.isEmpty)) {
+      _showError('Please fill in all fields.');
       return;
     }
+
 
     if (password.length < 6) {
-      _showError("Password must be at least 6 characters.");
+      _showError('Password must be at least 6 characters.');
       return;
     }
 
+
     if (password != confirmPassword) {
-      _showError("Passwords do not match.");
+      _showError('Passwords do not match.');
       return;
     }
+
 
     setState(() => _isLoading = true);
 
+
     try {
       await _authService.registerStudent(
-        firstName: firstName,
-        lastName: lastName,
         email: email,
         password: password,
-        institution: _selectedInstitution,
+        firstName: firstName,
+        lastName: lastName,
+        institution: _institution,
         matricule: matricule,
-        level: _selectedLevel,
-        major: _selectedMajor,
-        semester: _selectedSemester,
+        level: _level,
+        major: _majorCode, // ✅ CODE GOES TO DATABASE
+        semester: _semester,
       );
 
+
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, "/home");
+      Navigator.pushReplacementNamed(context, '/home');
     } catch (e) {
-      _showError(e.toString().replaceAll("Exception:", "").trim());
+      _showError(
+        e.toString().replaceFirst('Exception:', '').trim(),
+      );
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
+
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -112,6 +147,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+
+  // ─────────────────────────────
+  // UI
+  // ─────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -121,17 +160,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 28),
           child: ListView(
             children: [
-              const SizedBox(height: 40),
+              const SizedBox(height: 24),
+
 
               IconButton(
+                alignment: Alignment.centerLeft,
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => Navigator.pop(context),
               ),
 
-              const SizedBox(height: 20),
+
+              const SizedBox(height: 16),
+
 
               const Text(
-                "Create an account",
+                'Create an account',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.w800,
@@ -139,38 +182,83 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
 
-              const SizedBox(height: 30),
 
-              // 👤 NAME
-              _input(_firstNameController, "First Name", "e.g Arabella"),
-              _input(_lastNameController, "Last Name", "e.g Kwake"),
+              const SizedBox(height: 28),
 
-              // 🏫 ACADEMIC INFO
-              _dropdown("Institution", _selectedInstitution,
-                  const ["ICT University"],
-                  (v) => setState(() => _selectedInstitution = v!)),
 
-              _dropdown("Level", _selectedLevel, _levels,
-                  (v) => setState(() => _selectedLevel = v!)),
+              _input(_firstNameController, 'First Name'),
+              _input(_lastNameController, 'Last Name'),
 
-              _dropdown("Major", _selectedMajor, _majors,
-                  (v) => setState(() => _selectedMajor = v!)),
 
-              _dropdown("Semester", _selectedSemester, _semesters,
-                  (v) => setState(() => _selectedSemester = v!)),
+              _dropdown(
+                'Institution',
+                _institution,
+                const ['ICT University'],
+                (v) => setState(() => _institution = v!),
+              ),
 
-              // 🆔 AUTH INFO
-              _input(_matriculeController, "Matricule", "e.g ICTU20241518"),
-              _input(_emailController, "Email",
-                  "student@ictuniversity.org",
+
+              _dropdown(
+                'Level',
+                _level,
+                _levels,
+                (v) => setState(() => _level = v!),
+              ),
+
+
+              /// 🎓 MAJOR (CODE ↔ NAME)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Major',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: _majorCode,
+                      items: _majors.entries
+                          .map(
+                            (e) => DropdownMenuItem(
+                              value: e.key,          // SEN, CSC
+                              child: Text(e.value),  // Display name
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) =>
+                          setState(() => _majorCode = v!),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+
+              _dropdown(
+                'Semester',
+                _semester,
+                _semesters,
+                (v) => setState(() => _semester = v!),
+              ),
+
+
+              _input(_matriculeController, 'Matricule'),
+              _input(_emailController, 'Email',
                   type: TextInputType.emailAddress),
-              _input(_passwordController, "Password", "At least 6 characters",
-                  obscure: true),
-              _input(_confirmPasswordController, "Confirm Password",
-                  "Re-enter password",
+              _input(_passwordController, 'Password', obscure: true),
+              _input(_confirmPasswordController, 'Confirm Password',
                   obscure: true),
 
-              const SizedBox(height: 30),
+
+              const SizedBox(height: 28),
+
 
               SizedBox(
                 height: 56,
@@ -183,9 +271,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
+                      ? const CircularProgressIndicator(
+                          color: Colors.white,
+                        )
                       : const Text(
-                          "Create Account",
+                          'Create Account',
                           style: TextStyle(fontSize: 18),
                         ),
                 ),
@@ -197,10 +287,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // ─────────────────────────────
-  // 🔽 HELPERS
-  // ─────────────────────────────
 
+  // ─────────────────────────────
+  // HELPERS
+  // ─────────────────────────────
   Widget _dropdown(
     String label,
     String value,
@@ -218,12 +308,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
           DropdownButtonFormField<String>(
             initialValue: value,
             items: items
-                .map(
-                  (e) => DropdownMenuItem(
-                    value: e,
-                    child: Text(e),
-                  ),
-                )
+                .map((e) =>
+                    DropdownMenuItem(value: e, child: Text(e)))
                 .toList(),
             onChanged: onChanged,
             decoration: InputDecoration(
@@ -240,10 +326,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
+
   Widget _input(
     TextEditingController controller,
-    String label,
-    String hint, {
+    String label, {
     bool obscure = false,
     TextInputType type = TextInputType.text,
   }) {
@@ -260,7 +346,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             obscureText: obscure,
             keyboardType: type,
             decoration: InputDecoration(
-              hintText: hint,
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
@@ -274,3 +359,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+
+
+
+
+
+
+

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/timetable_service.dart';
+import '../models/timetable_entry.dart';
+import '../state/selected_day.dart';
 
 class TimetableTab extends StatefulWidget {
   const TimetableTab({super.key});
@@ -10,63 +14,52 @@ class TimetableTab extends StatefulWidget {
 class _TimetableTabState extends State<TimetableTab> {
   int _selectedDayIndex = 0;
 
-  final List<String> _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  final List<String> _days = const [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+  ];
 
-  /// 🧪 DUMMY TIMETABLE DATA (UI ONLY)
-  final Map<String, List<Map<String, String>>> _timetable = {
-    'Mon': [
-      {
-        'course': 'Data Structures',
-        'time': '08:00 - 10:00',
-        'venue': 'Lab 1',
-        'type': 'Lecture',
-      },
-      {
-        'course': 'Discrete Mathematics',
-        'time': '11:00 - 13:00',
-        'venue': 'Room B2',
-        'type': 'Tutorial',
-      },
-    ],
-    'Tue': [
-      {
-        'course': 'Software Engineering',
-        'time': '09:00 - 11:00',
-        'venue': 'Room C1',
-        'type': 'Lecture',
-      },
-    ],
-    'Wed': [],
-    'Thu': [
-      {
-        'course': 'Computer Networks',
-        'time': '14:00 - 16:00',
-        'venue': 'Lab 2',
-        'type': 'Practical',
-      },
-    ],
-    'Fri': [
-      {
-        'course': 'Cyber Security',
-        'time': '10:00 - 12:00',
-        'venue': 'Room A3',
-        'type': 'Lecture',
-      },
-    ],
-  };
+  late Future<List<TimetableEntry>> _timetableFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _timetableFuture = TimetableService.getTimetable();
+
+    // 🔑 Sync initial selected day with global state (today)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final selectedDay = context.read<SelectedDay>().day;
+      final index = _days.indexOf(selectedDay);
+      if (index != -1) {
+        setState(() => _selectedDayIndex = index);
+      }
+    });
+  }
+
+  /// 🔑 NORMALIZE DAY FROM DATABASE
+  String normalizeDay(String day) {
+    final d = day.trim().toLowerCase();
+
+    if (d.startsWith('mon')) return 'Monday';
+    if (d.startsWith('tue')) return 'Tuesday';
+    if (d.startsWith('wed')) return 'Wednesday';
+    if (d.startsWith('thu')) return 'Thursday';
+    if (d.startsWith('fri')) return 'Friday';
+
+    return day;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final selectedDay = _days[_selectedDayIndex];
-    final classes = _timetable[selectedDay]!;
-
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// 🔝 HEADER
             const Text(
               "Weekly Timetable",
               style: TextStyle(
@@ -87,14 +80,20 @@ class _TimetableTabState extends State<TimetableTab> {
                 separatorBuilder: (_, _) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
                   final isSelected = index == _selectedDayIndex;
+
                   return GestureDetector(
                     onTap: () {
+                      // 🔥 THIS IS THE CRITICAL LINE
+                      context.read<SelectedDay>().setDay(_days[index]);
+
                       setState(() => _selectedDayIndex = index);
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 18, vertical: 10),
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? const Color(0xFF0F172A)
@@ -102,17 +101,16 @@ class _TimetableTabState extends State<TimetableTab> {
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: .05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 10,
                           ),
                         ],
                       ),
                       child: Text(
-                        _days[index],
+                        _days[index].substring(0, 3),
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color:
-                              isSelected ? Colors.white : Colors.black87,
+                          color: isSelected ? Colors.white : Colors.black87,
                         ),
                       ),
                     ),
@@ -123,22 +121,44 @@ class _TimetableTabState extends State<TimetableTab> {
 
             const SizedBox(height: 24),
 
-            /// 📚 CLASSES LIST
+            /// 📚 TIMETABLE CONTENT
             Expanded(
-              child: classes.isEmpty
-                  ? _emptyState()
-                  : ListView.builder(
-                      itemCount: classes.length,
-                      itemBuilder: (context, index) {
-                        final c = classes[index];
-                        return _ClassCard(
-                          course: c['course']!,
-                          time: c['time']!,
-                          venue: c['venue']!,
-                          type: c['type']!,
-                        );
-                      },
-                    ),
+              child: FutureBuilder<List<TimetableEntry>>(
+                future: _timetableFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        snapshot.error.toString(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    );
+                  }
+
+                  final timetable = snapshot.data ?? [];
+                  final selectedDay = _days[_selectedDayIndex];
+
+                  final dayClasses = timetable.where((entry) {
+                    return normalizeDay(entry.day) == selectedDay;
+                  }).toList();
+
+                  if (dayClasses.isEmpty) {
+                    return _emptyState();
+                  }
+
+                  return ListView.builder(
+                    itemCount: dayClasses.length,
+                    itemBuilder: (context, index) {
+                      return _ClassCard(entry: dayClasses[index]);
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -147,39 +167,24 @@ class _TimetableTabState extends State<TimetableTab> {
   }
 
   Widget _emptyState() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.event_available,
-              size: 48, color: Color(0xFF94A3B8)),
+        children: [
+          Icon(Icons.event_available, size: 48, color: Color(0xFF94A3B8)),
           SizedBox(height: 12),
-          Text(
-            "No classes today",
-            style: TextStyle(
-              fontSize: 16,
-              color: Color(0xFF64748B),
-            ),
-          ),
+          Text("No classes today", style: TextStyle(color: Color(0xFF64748B))),
         ],
       ),
     );
   }
 }
 
-/// 🧱 CLASS CARD WIDGET
+/// 🧱 CLASS CARD
 class _ClassCard extends StatelessWidget {
-  final String course;
-  final String time;
-  final String venue;
-  final String type;
+  final TimetableEntry entry;
 
-  const _ClassCard({
-    required this.course,
-    required this.time,
-    required this.venue,
-    required this.type,
-  });
+  const _ClassCard({required this.entry});
 
   @override
   Widget build(BuildContext context) {
@@ -191,16 +196,14 @@ class _ClassCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: .05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
         ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// ⏱ TIME BAR
           Container(
             width: 6,
             height: 70,
@@ -209,16 +212,13 @@ class _ClassCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
             ),
           ),
-
           const SizedBox(width: 14),
-
-          /// 📘 DETAILS
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  course,
+                  entry.course,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -227,50 +227,28 @@ class _ClassCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  time,
-                  style: const TextStyle(
-                    color: Color(0xFF475569),
-                  ),
+                  "${entry.startTime} - ${entry.endTime}",
+                  style: const TextStyle(color: Color(0xFF475569)),
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.location_on_outlined,
-                        size: 16, color: Color(0xFF64748B)),
+                    const Icon(
+                      Icons.location_on_outlined,
+                      size: 16,
+                      color: Color(0xFF64748B),
+                    ),
                     const SizedBox(width: 4),
                     Text(
-                      venue,
-                      style: const TextStyle(
-                        color: Color(0xFF64748B),
-                      ),
+                      entry.location,
+                      style: const TextStyle(color: Color(0xFF64748B)),
                     ),
-                    const Spacer(),
-                    _typeChip(type),
                   ],
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _typeChip(String type) {
-    return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF14B8A6).withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        type,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF14B8A6),
-        ),
       ),
     );
   }

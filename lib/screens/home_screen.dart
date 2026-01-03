@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'timetable_tab.dart';
 import 'todo_tab.dart';
@@ -12,16 +13,79 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 1; // Home in the middle
+  final SupabaseClient _client = Supabase.instance.client;
+
+  int _currentIndex = 1;
+
+  // 🔹 Loaded from Supabase
+  String? _firstName;
+  String? _level;
+  String? _major;
+  String? _semester;
+
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserContext();
+  }
+
+  // ─────────────────────────────
+  // 🔌 LOAD USER DATA FROM SUPABASE
+  // ─────────────────────────────
+  Future<void> _loadUserContext() async {
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) throw Exception("Not authenticated");
+
+      final data = await _client
+          .from('students')
+          .select('first_name, level, major, semester')
+          .eq('id', user.id)
+          .single();
+
+      if (!mounted) return;
+
+      setState(() {
+        _firstName = data['first_name'];
+        _level = data['level'];
+        _major = data['major'];
+        _semester = data['semester'];
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // ─────────────────────────────
+  // 🔄 CALLED AFTER PROFILE UPDATE
+  // ─────────────────────────────
+  Future<void> _handleProfileUpdated() async {
+    await _loadUserContext();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> tabs = [
+    if (_isLoading ||
+        _firstName == null ||
+        _level == null ||
+        _major == null ||
+        _semester == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final tabs = [
       const TimetableTab(),
+
       HomeTab(
+        firstName: _firstName!,
         onViewTimetable: () {
           setState(() => _currentIndex = 0);
         },
+        onProfileUpdated: _handleProfileUpdated,
       ),
       const TodoTab(),
       const StudyBuddyTab(),
@@ -30,10 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: tabs,
-        ),
+        child: IndexedStack(index: _currentIndex, children: tabs),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -65,20 +126,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// 🌿 HOME TAB
+/// ─────────────────────────────
+/// 🌿 HOME TAB (NO DUMMY DATA)
+/// ─────────────────────────────
 class HomeTab extends StatelessWidget {
+  final String firstName;
   final VoidCallback onViewTimetable;
+  final VoidCallback onProfileUpdated;
 
   const HomeTab({
     super.key,
+    required this.firstName,
     required this.onViewTimetable,
+    required this.onProfileUpdated,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 🔹 Mock data (will come from profile later)
-    final String firstName = "Arabella";
-    final double progress = 0.68;
+    const double progress = 0.68; // later computed from tasks
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
@@ -106,10 +171,7 @@ class HomeTab extends StatelessWidget {
                     const SizedBox(height: 6),
                     const Text(
                       "Let’s make today count.",
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF64748B),
-                      ),
+                      style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
                     ),
                   ],
                 ),
@@ -117,8 +179,14 @@ class HomeTab extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.person_outline),
                 color: const Color(0xFF0F172A),
-                onPressed: () {
-                  Navigator.pushNamed(context, '/profile');
+                onPressed: () async {
+                  final updated = await Navigator.pushNamed(
+                    context,
+                    '/profile',
+                  );
+                  if (updated == true && context.mounted) {
+                    onProfileUpdated();
+                  }
                 },
               ),
             ],
@@ -135,8 +203,7 @@ class HomeTab extends StatelessWidget {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF14B8A6)
-                        .withValues(alpha: 0.15),
+                    color: const Color(0xFF14B8A6).withValues(alpha: 0.15),
                     blurRadius: 40,
                     spreadRadius: 8,
                   ),
@@ -148,11 +215,10 @@ class HomeTab extends StatelessWidget {
                   CircularProgressIndicator(
                     value: progress,
                     strokeWidth: 14,
-                    backgroundColor: const Color(0xFFCBD5E1)
-                        .withValues(alpha: 0.4),
-                    valueColor: const AlwaysStoppedAnimation(
-                      Color(0xFF14B8A6),
-                    ),
+                    backgroundColor: const Color(
+                      0xFFCBD5E1,
+                    ).withValues(alpha: 0.4),
+                    valueColor: const AlwaysStoppedAnimation(Color(0xFF14B8A6)),
                   ),
                   Column(
                     mainAxisSize: MainAxisSize.min,
@@ -180,32 +246,6 @@ class HomeTab extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 32),
-
-          /// ⏭ NEXT CLASS
-          const Center(
-            child: Column(
-              children: [
-                Text(
-                  "Up next",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  "Software Engineering · 14:00",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
           const SizedBox(height: 40),
 
           /// 🎯 PRIMARY ACTION
@@ -222,10 +262,7 @@ class HomeTab extends StatelessWidget {
               ),
               child: const Text(
                 "View Timetable",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
             ),
           ),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
+
 import 'app.dart';
+import 'state/selected_day.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,10 +19,9 @@ void main() async {
     throw Exception("Supabase URL or ANON KEY is missing from .env");
   }
 
-  await Supabase.initialize(
-    url: url,
-    anonKey: key,
-  );
+  await Supabase.initialize(url: url, anonKey: key);
 
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(create: (_) => SelectedDay(), child: const MyApp()),
+  );
 }

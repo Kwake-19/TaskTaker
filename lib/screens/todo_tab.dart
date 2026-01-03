@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/todo_item.dart';
+import '../services/timetable_service.dart';
+import '../state/selected_day.dart';
 
 class TodoTab extends StatefulWidget {
   const TodoTab({super.key});
@@ -8,35 +12,41 @@ class TodoTab extends StatefulWidget {
 }
 
 class _TodoTabState extends State<TodoTab> {
-  final List<_TodoItem> _timetableTasks = [
-    _TodoItem(
-      title: 'Attend Computer Networks class',
-      subtitle: '10:00 – 12:00 · Room A3',
-      completed: false,
-      isFromTimetable: true,
-    ),
-    _TodoItem(
-      title: 'Attend Software Engineering lecture',
-      subtitle: '14:00 – 16:00 · Room C1',
-      completed: false,
-      isFromTimetable: true,
-    ),
-  ];
+  // 🔒 Timetable-derived tasks
+  List<TodoItem> _timetableTasks = [];
+  bool _loadingTimetableTasks = true;
 
-  final List<_TodoItem> _personalTasks = [
-    _TodoItem(
-      title: 'Revise Data Structures',
-      subtitle: 'Before 9 PM',
-      completed: false,
-      isFromTimetable: false,
-    ),
-    _TodoItem(
-      title: 'Submit assignment',
-      subtitle: 'Due tonight',
-      completed: true,
-      isFromTimetable: false,
-    ),
-  ];
+  // 🧹 Personal tasks (local only for now)
+  final List<TodoItem> _personalTasks = [];
+
+  String? _lastLoadedDay;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // 👂 Listen to selected day changes
+    final selectedDay = context.watch<SelectedDay>().day;
+
+    // 🔁 Reload only when day actually changes
+    if (_lastLoadedDay != selectedDay) {
+      _lastLoadedDay = selectedDay;
+      _loadTimetableTasksForDay(selectedDay);
+    }
+  }
+
+  Future<void> _loadTimetableTasksForDay(String day) async {
+    setState(() => _loadingTimetableTasks = true);
+
+    final tasks = await TimetableService.getTodoTasksForDay(day);
+
+    if (!mounted) return;
+
+    setState(() {
+      _timetableTasks = tasks;
+      _loadingTimetableTasks = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,12 +73,34 @@ class _TodoTabState extends State<TodoTab> {
 
               const SizedBox(height: 24),
 
+              // =====================
+              // FROM TIMETABLE
+              // =====================
               _sectionTitle("From Timetable"),
-              ..._timetableTasks.map(_lockedTaskCard),
+
+              if (_loadingTimetableTasks)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_timetableTasks.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    "No classes this day 🎉",
+                    style: TextStyle(color: Color(0xFF64748B)),
+                  ),
+                )
+              else
+                ..._timetableTasks.map(_lockedTaskCard),
 
               const SizedBox(height: 32),
 
+              // =====================
+              // PERSONAL TASKS
+              // =====================
               _sectionTitle("My Tasks"),
+
               _personalTasks.isEmpty
                   ? _emptyPersonalTasks()
                   : Column(
@@ -82,6 +114,10 @@ class _TodoTabState extends State<TodoTab> {
       ),
     );
   }
+
+  // ======================================================
+  // UI HELPERS
+  // ======================================================
 
   Widget _sectionTitle(String title) {
     return Padding(
@@ -97,13 +133,13 @@ class _TodoTabState extends State<TodoTab> {
     );
   }
 
-  /// 🔒 Timetable task (not dismissible)
-  Widget _lockedTaskCard(_TodoItem item) {
+  /// 🔒 Timetable task (locked)
+  Widget _lockedTaskCard(TodoItem item) {
     return _taskCard(item);
   }
 
   /// 🧹 Personal task (dismissible)
-  Widget _dismissibleTaskCard(_TodoItem item) {
+  Widget _dismissibleTaskCard(TodoItem item) {
     return Dismissible(
       key: UniqueKey(),
       direction: DismissDirection.horizontal,
@@ -127,7 +163,7 @@ class _TodoTabState extends State<TodoTab> {
   }
 
   /// 🧱 Shared task card UI
-  Widget _taskCard(_TodoItem item) {
+  Widget _taskCard(TodoItem item) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -147,9 +183,11 @@ class _TodoTabState extends State<TodoTab> {
           Checkbox(
             value: item.completed,
             activeColor: const Color(0xFF14B8A6),
-            onChanged: (value) {
-              setState(() => item.completed = value ?? false);
-            },
+            onChanged: item.isFromTimetable
+                ? null
+                : (value) {
+                    setState(() => item.completed = value ?? false);
+                  },
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -161,8 +199,9 @@ class _TodoTabState extends State<TodoTab> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    decoration:
-                        item.completed ? TextDecoration.lineThrough : null,
+                    decoration: item.completed
+                        ? TextDecoration.lineThrough
+                        : null,
                     color: item.completed
                         ? const Color(0xFF94A3B8)
                         : const Color(0xFF0F172A),
@@ -189,8 +228,7 @@ class _TodoTabState extends State<TodoTab> {
   Widget _originChip(bool fromTimetable) {
     return Chip(
       label: Text(fromTimetable ? 'From Timetable' : 'Personal'),
-      backgroundColor:
-          const Color(0xFF14B8A6).withValues(alpha: 0.15),
+      backgroundColor: const Color(0xFF14B8A6).withValues(alpha: 0.15),
       labelStyle: const TextStyle(
         color: Color(0xFF14B8A6),
         fontWeight: FontWeight.w600,
@@ -231,19 +269,4 @@ class _TodoTabState extends State<TodoTab> {
       builder: (_) => const SizedBox(height: 200),
     );
   }
-}
-
-/// 🧠 SIMPLE TODO MODEL (UI ONLY)
-class _TodoItem {
-  final String title;
-  final String subtitle;
-  bool completed;
-  final bool isFromTimetable;
-
-  _TodoItem({
-    required this.title,
-    required this.subtitle,
-    required this.completed,
-    required this.isFromTimetable,
-  });
 }
