@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
-  /// 🔁 Detect app resume (midnight-safe)
+  /// 🔁 Handle day change safely
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
@@ -50,9 +50,9 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  // ─────────────────────────────
-  // 🔌 LOAD USER DATA
-  // ─────────────────────────────
+  // ─────────────────────────────────────────────
+  // LOAD USER DATA
+  // ─────────────────────────────────────────────
   Future<void> _loadUserContext() async {
     try {
       final user = _client.auth.currentUser;
@@ -109,10 +109,7 @@ class _HomeScreenState extends State<HomeScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: tabs,
-        ),
+        child: IndexedStack(index: _currentIndex, children: tabs),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
@@ -145,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen>
 }
 
 ////////////////////////////////////////////////
-/// 🌿 HOME TAB (REAL PROGRESS)
+/// 🌿 HOME TAB (MOTIVATIONAL + REAL PROGRESS)
 ////////////////////////////////////////////////
 class HomeTab extends StatelessWidget {
   final String firstName;
@@ -161,14 +158,14 @@ class HomeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = context.watch<DailyProgress>().progress;
+    final daily = context.watch<DailyProgress>();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// 🔝 HEADER
+          /// HEADER
           Row(
             children: [
               Expanded(
@@ -177,21 +174,15 @@ class HomeTab extends StatelessWidget {
                   children: [
                     Text(
                       "Welcome back, $firstName 👋",
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
                       "Let’s make today count.",
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF64748B),
-                      ),
+                      style: TextStyle(color: Color(0xFF64748B)),
                     ),
                   ],
                 ),
@@ -211,48 +202,16 @@ class HomeTab extends StatelessWidget {
 
           const SizedBox(height: 36),
 
-          /// 🟢 REAL PROGRESS RING
-          Center(
-            child: SizedBox(
-              width: 240,
-              height: 240,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CircularProgressIndicator(
-                    value: progress,
-                    strokeWidth: 14,
-                    backgroundColor:
-                        const Color(0xFFCBD5E1).withValues(alpha: 0.4),
-                    valueColor: const AlwaysStoppedAnimation(
-                      Color(0xFF14B8A6),
-                    ),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        "${(progress * 100).round()}%",
-                        style: const TextStyle(
-                          fontSize: 42,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        "of today completed",
-                        style: TextStyle(color: Color(0xFF64748B)),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          /// 🔥 MOTIVATIONAL PROGRESS RING
+          MotivationalProgressRing(
+            progress: daily.progress,
+            totalTasks: daily.totalTasks,
+            completedTasks: daily.completedTasks,
           ),
 
           const SizedBox(height: 40),
 
-          /// 🎯 PRIMARY ACTION
+          /// PRIMARY ACTION
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -271,6 +230,94 @@ class HomeTab extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+////////////////////////////////////////////////
+/// 🌟 MOTIVATIONAL PROGRESS RING
+////////////////////////////////////////////////
+class MotivationalProgressRing extends StatelessWidget {
+  final double progress;
+  final int totalTasks;
+  final int completedTasks;
+
+  const MotivationalProgressRing({
+    super.key,
+    required this.progress,
+    required this.totalTasks,
+    required this.completedTasks,
+  });
+
+  String get _message {
+    if (progress >= 1.0) return "Day conquered 🏆";
+    if (progress >= 0.7) return "Almost there 💪";
+    if (progress >= 0.3) return "You’re on a roll 🔥";
+    return "Let’s get started 🚀";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = totalTasks - completedTasks;
+
+    return Center(
+      child: Container(
+        width: 260,
+        height: 260,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF14B8A6).withValues(alpha: 0.35),
+              blurRadius: 40,
+              spreadRadius: 6,
+            ),
+          ],
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CircularProgressIndicator(
+              value: progress,
+              strokeWidth: 14,
+              backgroundColor:
+                  const Color(0xFFCBD5E1).withValues(alpha: 0.4),
+              valueColor:
+                  const AlwaysStoppedAnimation(Color(0xFF14B8A6)),
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "${(progress * 100).round()}%",
+                  style: const TextStyle(
+                    fontSize: 44,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _message,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F766E),
+                  ),
+                ),
+                if (remaining > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    "$remaining task${remaining == 1 ? '' : 's'} left",
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
