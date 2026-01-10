@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/push_notification_service.dart'; 
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,11 +35,18 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
+      //  LOGIN WITH SUPABASE
       await _authService.login(email: email, password: password);
+
+      //  INIT PUSH NOTIFICATIONS AFTER LOGIN
+      await PushNotificationService.initAfterLogin();
+
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, "/home");
     } catch (e) {
-      _showError(e.toString().replaceAll("Exception:", "").trim());
+      _showError(
+        e.toString().replaceAll("Exception:", "").trim(),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -67,7 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
             28,
             0,
             28,
-            keyboardInset + 20, // 🔑 KEY FIX
+            keyboardInset + 20,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -237,4 +245,3 @@ class _InputField extends StatelessWidget {
     );
   }
 }
-

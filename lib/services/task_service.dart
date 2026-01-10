@@ -30,31 +30,48 @@ class TaskService {
   }
 
   /// ➕ Add a new personal task
-  static Future<void> addTask({
+  /// ✅ Stores notify_at for server push notifications
+  /// ✅ RETURNS THE CREATED TASK ID
+  static Future<String> addTask({
     required String title,
     required String day,
     String? time,
+    DateTime? notifyAt, // 👈 NEW
   }) async {
     final user = _client.auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      throw Exception("User not authenticated");
+    }
 
-    await _client.from('tasks').insert({
-      'user_id': user.id,
-      'title': title,
-      'day_of_week': day,
-      'time': time,
-      'completed': false,
-    });
+    final response = await _client
+        .from('tasks')
+        .insert({
+          'user_id': user.id,
+          'title': title,
+          'day_of_week': day,
+          'time': time,
+          'completed': false,
+          'notify_at': notifyAt?.toIso8601String(), // 👈 NEW
+          'notification_sent': false,               // 👈 NEW
+        })
+        .select('id')
+        .single();
+
+    return response['id'] as String;
   }
 
   /// ✅ Toggle completion
+  /// Cancels server notification if completed early
   static Future<void> toggleTask(
     String taskId,
     bool completed,
   ) async {
     await _client
         .from('tasks')
-        .update({'completed': completed})
+        .update({
+          'completed': completed,
+          if (completed) 'notification_sent': true,
+        })
         .eq('id', taskId);
   }
 

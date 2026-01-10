@@ -14,12 +14,15 @@ class TimetableTab extends StatefulWidget {
 class _TimetableTabState extends State<TimetableTab> {
   int _selectedDayIndex = 0;
 
+  /// ✅ NOW INCLUDES WEEKENDS
   final List<String> _days = const [
     'Monday',
     'Tuesday',
     'Wednesday',
     'Thursday',
     'Friday',
+    'Saturday',
+    'Sunday',
   ];
 
   late Future<List<TimetableEntry>> _timetableFuture;
@@ -59,7 +62,13 @@ class _TimetableTabState extends State<TimetableTab> {
     if (d.startsWith('wed')) return 'Wednesday';
     if (d.startsWith('thu')) return 'Thursday';
     if (d.startsWith('fri')) return 'Friday';
+    if (d.startsWith('sat')) return 'Saturday';
+    if (d.startsWith('sun')) return 'Sunday';
     return day;
+  }
+
+  bool _isWeekend(String day) {
+    return day == 'Saturday' || day == 'Sunday';
   }
 
   @override
@@ -133,7 +142,7 @@ class _TimetableTabState extends State<TimetableTab> {
 
             const SizedBox(height: 24),
 
-            /// 📚 TIMETABLE CONTENT (WITH PULL-TO-REFRESH)
+            /// 📚 TIMETABLE CONTENT
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _refresh,
@@ -163,6 +172,29 @@ class _TimetableTabState extends State<TimetableTab> {
 
                     final timetable = snapshot.data ?? [];
                     final selectedDay = _days[_selectedDayIndex];
+
+                    /// 🟢 WEEKEND HANDLING
+                    if (_isWeekend(selectedDay)) {
+                      return ListView(
+                        children: const [
+                          SizedBox(height: 120),
+                          Icon(
+                            Icons.weekend,
+                            size: 48,
+                            color: Color(0xFF94A3B8),
+                          ),
+                          SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              "No classes (Weekend 🎉)",
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
 
                     final dayClasses = timetable.where((entry) {
                       return normalizeDay(entry.day) == selectedDay;

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +8,7 @@ import 'todo_tab.dart';
 import 'study_buddy_tab.dart';
 import '../state/daily_progress.dart';
 import '../state/selected_day.dart';
+import '../services/windows_reminder_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,10 +33,16 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+
+    if (Platform.isWindows) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        WindowsReminderService.init();
+      });
+    } 
+
     WidgetsBinding.instance.addObserver(this);
     _loadUserContext();
   }
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
