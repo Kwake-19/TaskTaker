@@ -96,7 +96,7 @@ class _TimetableTabState extends State<TimetableTab> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: _days.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
                   final isSelected = index == _selectedDayIndex;
 
