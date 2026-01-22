@@ -42,6 +42,7 @@ flutter:
 
   assets:
     - .env
+    - assets/splash.png
 
 flutter_launcher_icons:
   android: true
@@ -49,10 +50,8 @@ flutter_launcher_icons:
   image_path: "assets/icon.png"
 
 flutter_native_splash:
-  color: "#2A9A9A"
+  color: "#14B8A6"
   image: assets/splash.png
   android: true
   ios: true
-  android_gravity: fill
-
-
+  android_gravity: center
