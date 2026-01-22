@@ -54,7 +54,7 @@ class PDFService {
         // Extract text from current page
         final String pageText = extractor.extractText(startPageIndex: i);
         
-        fullText += pageText + '\n\n';
+        fullText += '$pageText\n\n';
         
         print('✅ Extracted page ${i + 1}/${document.pages.count}');
       }
