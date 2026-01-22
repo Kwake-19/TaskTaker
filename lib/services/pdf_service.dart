@@ -2,80 +2,72 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
-// Service for handling PDF file operations
 class PDFService {
-  // Let user pick a PDF file from their device
+  /// 📁 Pick a PDF file from the device
   static Future<File?> pickPDF() async {
     try {
       print('📁 Opening file picker...');
-      
-      // Open file picker with PDF filter
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
+
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf'],  // Only allow PDF files
+        allowedExtensions: ['pdf'],
       );
-      
-      // Check if user selected a file
+
       if (result != null && result.files.single.path != null) {
-        File file = File(result.files.single.path!);
+        final file = File(result.files.single.path!);
         print('✅ PDF selected: ${result.files.single.name}');
         return file;
-      } else {
-        print('⚠️ No file selected');
-        return null;
       }
-      
+
+      print('⚠️ No file selected');
+      return null;
+
     } catch (e) {
       print('❌ Error picking PDF: $e');
       return null;
     }
   }
-  
-  // Extract text content from PDF file
+
+  /// 📖 Extract text from a PDF file
   static Future<String> extractTextFromPDF(File pdfFile) async {
     try {
-      print('📖 Reading PDF file...');
-      
-      // Read PDF file as bytes
+      print('📖 Loading PDF...');
+
       final bytes = await pdfFile.readAsBytes();
-      
-      // Load PDF document
       final PdfDocument document = PdfDocument(inputBytes: bytes);
-      
-      print('📄 PDF has ${document.pages.count} pages');
-      
-      // Extract text from all pages
-      String fullText = '';
-      
-      for (int i = 0; i < document.pages.count; i++) {
-        // Create text extractor
-        final PdfTextExtractor extractor = PdfTextExtractor(document);
-        
-        // Extract text from current page
+
+      final int pageCount = document.pages.count;
+      print('📄 PDF has $pageCount pages');
+
+      final PdfTextExtractor extractor = PdfTextExtractor(document);
+
+      final StringBuffer extracted = StringBuffer();
+
+      for (int i = 0; i < pageCount; i++) {
         final String pageText = extractor.extractText(startPageIndex: i);
-        
-        fullText += '$pageText\n\n';
-        
-        print('✅ Extracted page ${i + 1}/${document.pages.count}');
+        extracted.writeln(pageText);
+        extracted.writeln();
+
+        print('✅ Extracted page ${i + 1}/$pageCount');
       }
-      
-      // Clean up
+
       document.dispose();
-      
-      print('✅ Total extracted: ${fullText.length} characters');
-      
-      // Limit text length (AI has token limits)
-      // Gemini Pro can handle ~30,000 tokens, roughly 10,000 words
-      if (fullText.length > 15000) {
-        print('⚠️ Text too long, truncating to 15000 characters');
-        fullText = fullText.substring(0, 15000);
+
+      String fullText = extracted.toString().trim();
+      print('📚 Extracted total: ${fullText.length} characters');
+
+      /// Limit text length for AI (important)
+      const int limit = 15000;
+      if (fullText.length > limit) {
+        print('⚠️ Text too long, truncating to $limit characters');
+        fullText = fullText.substring(0, limit);
       }
-      
-      return fullText.trim();
-      
+
+      return fullText;
+
     } catch (e) {
       print('❌ Error extracting PDF text: $e');
-      throw Exception('Failed to read PDF: $e');
+      throw Exception('Failed to extract text: $e');
     }
   }
 }

@@ -20,6 +20,7 @@ dependencies:
   # PDF & File handling
   file_picker: ^8.1.4
   syncfusion_flutter_pdf: ^28.1.33
+  pdf_text: ^2.0.0
 
   # Notifications
   flutter_local_notifications: ^17.1.2
