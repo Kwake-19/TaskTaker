@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
-import '../services/push_notification_service.dart'; 
+import '../services/push_notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,6 +16,37 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final AuthService _authService = AuthService();
   bool _isLoading = false;
+
+  // 🔥 NEW: Remember Me + Password visibility
+  bool _rememberMe = false;
+  bool _passwordVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberMe();
+  }
+
+  /// Load remember me saved state
+  Future<void> _loadRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool("remember_me") ?? false;
+
+    if (saved) {
+      _rememberMe = true;
+
+      // Load saved email if you want (optional)
+      // _emailController.text = prefs.getString("saved_email") ?? "";
+    }
+
+    setState(() {});
+  }
+
+  /// Save Remember Me selection
+  Future<void> _saveRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool("remember_me", _rememberMe);
+  }
 
   @override
   void dispose() {
@@ -35,10 +67,11 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      //  LOGIN WITH SUPABASE
       await _authService.login(email: email, password: password);
 
-      //  INIT PUSH NOTIFICATIONS AFTER LOGIN
+      await _saveRememberMe();
+
+      // INIT PUSH NOTIFICATIONS AFTER LOGIN
       await PushNotificationService.initAfterLogin();
 
       if (!mounted) return;
@@ -123,15 +156,69 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 20),
 
+              /// 🔥 UPDATED PASSWORD FIELD WITH EYE ICON
               _InputField(
                 controller: _passwordController,
                 label: "Password",
                 hint: "••••••••",
-                obscureText: true,
+                obscureText: !_passwordVisible,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _passwordVisible
+                        ? Icons.visibility
+                        : Icons.visibility_off,
+                    color: const Color(0xFF94A3B8),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _passwordVisible = !_passwordVisible;
+                    });
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              /// 🔥 REMEMBER ME + FORGOT PASSWORD
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _rememberMe,
+                        onChanged: (v) {
+                          setState(() => _rememberMe = v ?? false);
+                        },
+                      ),
+                      const Text(
+                        "Remember me",
+                        style: TextStyle(
+                          color: Color(0xFF0F172A),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    ],
+                  ),
+
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, "/forgot-password");
+                    },
+                    child: const Text(
+                      "Forgot password?",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF14B8A6),
+                      ),
+                    ),
+                  )
+                ],
               ),
 
               const SizedBox(height: 32),
 
+              /// LOGIN BUTTON
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -195,6 +282,7 @@ class _InputField extends StatelessWidget {
   final String hint;
   final bool obscureText;
   final TextInputType keyboardType;
+  final Widget? suffixIcon; // 🔥 NEW
 
   const _InputField({
     required this.controller,
@@ -202,6 +290,7 @@ class _InputField extends StatelessWidget {
     required this.hint,
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
+    this.suffixIcon,
   });
 
   @override
@@ -226,6 +315,7 @@ class _InputField extends StatelessWidget {
             hintText: hint,
             filled: true,
             fillColor: Colors.white,
+            suffixIcon: suffixIcon, // 🔥 NEW
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             border: OutlineInputBorder(

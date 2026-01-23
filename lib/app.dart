@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'utils/app_router.dart';
 
 class MyApp extends StatelessWidget {
- final GlobalKey<NavigatorState> navigatorKey;
+  final GlobalKey<NavigatorState> navigatorKey;
+  final String initialRoute;
 
   const MyApp({
     super.key,
-    required this.navigatorKey, 
+    required this.navigatorKey,
+    required this.initialRoute,
   });
 
   @override
@@ -15,7 +17,7 @@ class MyApp extends StatelessWidget {
       title: "TaskTaker",
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      initialRoute: '/',
+      initialRoute: initialRoute,
       onGenerateRoute: AppRouter.generateRoute,
     );
   }
